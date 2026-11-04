@@ -8,6 +8,7 @@ must be migrated, and its entry has a **Migration** section with the steps (or
 ## [Unreleased]
 
 ### Changed
+- README: "How to contribute: fork + PR" for the public copy (card 01-156).
 - Skills, tools, tests and evals say "the user" instead of a personal name, and
   examples use made-up project names (Ceramics, myapp), ready for a public
   copy (card 01-156).
