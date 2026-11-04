@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: backlog-claim
+description: Claiming picks the right card and claims it by moving the file.
+tags: [workai-backlog]
+runs: 3
+execution:
+  max_turns: 15
+  allowed_tools: [Read, Glob, Grep, Edit, Skill, "Bash(mv:*)", "Bash(ls:*)", "Bash(cd:*)", "Bash(date:*)", "Bash(git:*)", "Bash(python3:*)"]
+  prompt: |
+    In ~/workai/projects/01-demo, claim the next card from the backlog
+    following the workai backlog rules. Only claim it: do not do the work and
+    do not commit. Then tell me which card you claimed.
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-backlog'
+    arm: with-only
+  - name: right-card-moved-and-filled
+    type: regex
+    pattern: 'claimed_by:[ \t]*\S'
+    target: {source: file, path: "workai/projects/01-demo/backlog/doing/002-write-intro.md"}
+  - name: started-filled
+    type: regex
+    pattern: 'started:[ \t]*\S'
+    target: {source: file, path: "workai/projects/01-demo/backlog/doing/002-write-intro.md"}
+  - name: blocked-card-untouched
+    type: regex
+    pattern: 'claimed_by:[ \t]*\n'
+    target: {source: file, path: "workai/projects/01-demo/backlog/todo/003-write-summary.md"}
+  - name: says-002
+    type: regex
+    pattern: '002'
+    target: last_message

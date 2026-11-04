@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: waiting-on-me
+description: Asking "what's waiting on me" lists the one waiting card (03-001, its question) and nothing else, and changes nothing. Written for card 01-090; not run yet (evals cannot run git on this Mac, see card 01-072).
+tags: [workai-list-projects]
+runs: 3
+execution:
+  max_turns: 10
+  allowed_tools: [Read, Glob, Grep, Skill, "Bash(python3:*)", "Bash(ls:*)", "Bash(git:*)"]
+  prompt: what's waiting on me?
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-list-projects'
+    arm: with-only
+  - name: names-the-card
+    type: regex
+    pattern: '(?=[\s\S]*Tag the albums)(?=[\s\S]*question for the user)'
+    target: last_message
+  - name: card-untouched
+    type: regex
+    pattern: 'waiting: question for the user, see Notes\n'
+    target: {source: file, path: "workai/projects/03-my-music/backlog/doing/001-tag-albums.md"}
+  - name: good-answer
+    type: llm
+    criteria: |
+      PASS if the reply says exactly one card is waiting on the user: 03-001
+      "Tag the albums" in My Music, with its question ("question for the user,
+      see Notes") or an offer to open its Notes, and says nothing is stale or
+      held up by it (or leaves those empty sections out). FAIL if it presents
+      any other card (e.g. 03-002 "Rank the festival bill", 01-002..005) as
+      waiting on the user, invents cards, answers or clears the question, or
+      claims a card.

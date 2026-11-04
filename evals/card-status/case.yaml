@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: card-status
+description: Asking "status of card 001" with no hub named, from outside any hub, lists 01-001 and 03-001 (both hubs have an 001) and asks which, opening neither and changing nothing. Written for card 01-091; not run yet (evals cannot run git on this Mac, see card 01-072).
+tags: [workai-open-project]
+runs: 3
+execution:
+  max_turns: 10
+  allowed_tools: [Read, Glob, Grep, Skill, "Bash(python3:*)", "Bash(ls:*)", "Bash(git:*)"]
+  prompt: what's the status of card 001?
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-open-project'
+    arm: with-only
+  - name: lists-both
+    type: regex
+    pattern: '(?=[\s\S]*Set up the demo)(?=[\s\S]*Tag the albums)'
+    target: last_message
+  - name: card-untouched
+    type: regex
+    pattern: 'waiting: question for the user, see Notes\n'
+    target: {source: file, path: "workai/projects/03-my-music/backlog/doing/001-tag-albums.md"}
+  - name: good-answer
+    type: llm
+    criteria: |
+      PASS if the reply says card 001 exists in two projects - 01-001 "Set up
+      the demo" (Demo, done) and 03-001 "Tag the albums" (My Music, in
+      progress, waiting on a question) - and asks which one is meant. FAIL if
+      it picks one of them without asking, invents cards, or claims, edits or
+      moves any card.

@@ -1,0 +1,13 @@
+# Pinned release binaries for tools without a package on a route (tools.txt
+# column "release"). The SHA-256 is pinned here, not fetched, so a changed
+# upload is refused. To update: new version, URLs and sums from the
+# project's release page (workmux: workmux-*.sha256; gitleaks: *_checksums.txt).
+# tool     os      arch    url                                                                                              sha256
+workmux    darwin  arm64   https://github.com/raine/workmux/releases/download/v0.1.277/workmux-darwin-arm64.tar.gz          14684a56c06bccb32d03186be5282e6f5ca24acd037996da439bb12e97c4c285
+workmux    darwin  x86_64  https://github.com/raine/workmux/releases/download/v0.1.277/workmux-darwin-amd64.tar.gz          ac7db345d45ef3c1a23c29f647c2ce47d4f3f32ef9096da76d1afa23ba67d116
+workmux    linux   x86_64  https://github.com/raine/workmux/releases/download/v0.1.277/workmux-linux-amd64.tar.gz           55c0144c79b55881d7210cbcc6278ce6b64b7a66317959d251140309aef73064
+workmux    linux   arm64   https://github.com/raine/workmux/releases/download/v0.1.277/workmux-linux-arm64.tar.gz           795b7f7b5d8c66b84f56f00549697e30d9f0b0b8d3373b6fbf422d6f229222ca
+gitleaks   darwin  arm64   https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5
+gitleaks   darwin  x86_64  https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_x64.tar.gz   dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709
+gitleaks   linux   x86_64  https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz    551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+gitleaks   linux   arm64   https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_arm64.tar.gz  e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080

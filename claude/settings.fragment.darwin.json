@@ -1,0 +1,5 @@
+{
+  "autoMode": {
+    "soft_deny": ["$defaults", "Bash(tmutil delete:*)"]
+  }
+}

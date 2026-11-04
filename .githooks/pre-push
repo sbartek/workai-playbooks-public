@@ -1,0 +1,8 @@
+#!/bin/sh
+# workai pre-push scan (tracked: this repo ships scan.py itself, so no copy).
+# Enabled with the pre-commit hook: git config core.hooksPath .githooks
+top="$(git rev-parse --show-toplevel)"
+python3 "$top/skills/workai-new-project/scan.py" "$top" || {
+  echo "pre-push: workai scan found secrets or identity documents; push stopped"
+  exit 1
+}

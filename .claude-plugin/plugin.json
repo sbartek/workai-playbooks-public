@@ -1,0 +1,5 @@
+{
+  "name": "workai-playbooks",
+  "description": "workai skills, packaged as a Claude Code plugin so `claude plugin eval` can load them. Installing for daily use goes through install.sh, not the plugin.",
+  "version": "1.0.0"
+}

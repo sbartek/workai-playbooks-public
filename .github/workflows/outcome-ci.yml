@@ -1,0 +1,169 @@
+# Standard CI for outcome repos (card 01-085): lint, tests, type check.
+# A REUSABLE workflow: repos call it instead of copying it. The caller's
+# workflow file is the per-repo config, e.g. `.github/workflows/ci.yml`:
+#
+#   name: CI
+#   on:
+#     pull_request:
+#     push:
+#       branches: [main]
+#   permissions: {}
+#   jobs:
+#     ci:
+#       uses: sbartek/workai-playbooks/.github/workflows/outcome-ci.yml@<sha>
+#       permissions:
+#         contents: read
+#       with:
+#         python: true                 # ruff
+#         shell: true                  # shellcheck
+#         typecheck: report            # off | report | enforce (basedpyright)
+#         test-command: scripts/run-tests.sh
+#         skip: '^(vendor|evals/_fixtures)/'   # extended regex of paths lint skips
+#
+# workai-playbooks calls it with `uses: ./.github/workflows/outcome-ci.yml`.
+# Another (private) repo can call it only once workai-playbooks allows it:
+# Settings > Actions > General > Access, "Accessible from repositories owned
+# by the user" (card 086).
+#
+# Lint config stays the repo's own: ruff reads ruff.toml / pyproject.toml,
+# basedpyright reads pyrightconfig.json / pyproject.toml, shellcheck reads
+# .shellcheckrc. AI review on pull requests is a separate workflow
+# (ai-review.yml, card 01-084), not part of this one.
+#
+# Safety: no secrets, contents: read only, checkout without stored
+# credentials, actions pinned to a full commit SHA, tools pinned to a version.
+name: Outcome CI
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        description: Lint Python files with ruff
+        type: boolean
+        default: false
+      shell:
+        description: Lint shell scripts (*.sh and bash/sh shebangs) with shellcheck
+        type: boolean
+        default: false
+      shellcheck-severity:
+        description: Lowest shellcheck severity that fails (error, warning, info, style)
+        type: string
+        default: error
+      typecheck:
+        description: "basedpyright: off, report (never fails) or enforce"
+        type: string
+        default: "off"
+      test-command:
+        description: Command that runs the repo's tests; empty = no test job
+        type: string
+        default: ""
+      skip:
+        description: Extended regex of repo paths the linters skip
+        type: string
+        default: ""
+
+permissions: {}
+
+env:
+  RUFF_VERSION: 0.14.0
+  BASEDPYRIGHT_VERSION: 1.31.6
+  SHELLCHECK_PY_VERSION: 0.11.0.1  # shellcheck 0.11.0
+
+jobs:
+  lint:
+    if: inputs.python || inputs.shell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: List the files to lint
+        env:
+          SKIP: ${{ inputs.skip }}
+        run: |
+          git ls-files -z >"$RUNNER_TEMP/all"
+          # A broken skip regex must fail the job, not empty the lists.
+          if [ -n "$SKIP" ]; then
+            rc=0; printf '' | grep -Eq -- "$SKIP" || rc=$?
+            [ "$rc" -le 1 ] || { echo "::error title=Outcome CI::skip is not a valid extended regex: $SKIP"; exit 2; }
+          fi
+          filter() { if [ -n "$SKIP" ]; then grep -zEv -- "$SKIP" || [ $? = 1 ]; else cat; fi; }
+          { grep -zE '\.py$' <"$RUNNER_TEMP/all" || [ $? = 1 ]; } | filter >"$RUNNER_TEMP/py"
+          # Shell: *.sh, *.bash, and extensionless files with a sh/bash shebang.
+          : >"$RUNNER_TEMP/sh"
+          while IFS= read -r -d '' f; do
+            [ -f "$f" ] || continue
+            base="${f##*/}"
+            case "$base" in
+              *.sh|*.bash) printf '%s\0' "$f" >>"$RUNNER_TEMP/sh" ;;
+              ?*.*) ;;  # another extension (a leading dot is no extension)
+              *) if head -n 1 "$f" 2>/dev/null | grep -Eq '^#!.*\b(ba)?sh\b'; then printf '%s\0' "$f" >>"$RUNNER_TEMP/sh"; fi ;;
+            esac
+          done <"$RUNNER_TEMP/all"
+          filter <"$RUNNER_TEMP/sh" >"$RUNNER_TEMP/sh.f"; mv "$RUNNER_TEMP/sh.f" "$RUNNER_TEMP/sh"
+          echo "python files: $(tr -cd '\0' <"$RUNNER_TEMP/py" | wc -c), shell files: $(tr -cd '\0' <"$RUNNER_TEMP/sh" | wc -c)"
+      - name: ruff
+        if: inputs.python
+        run: |
+          [ -s "$RUNNER_TEMP/py" ] || { echo "no Python files"; exit 0; }
+          xargs -0 pipx run "ruff==$RUFF_VERSION" check --output-format github <"$RUNNER_TEMP/py"
+      - name: shellcheck
+        if: inputs.shell
+        env:
+          SEVERITY: ${{ inputs.shellcheck-severity }}
+        run: |
+          [ -s "$RUNNER_TEMP/sh" ] || { echo "no shell files"; exit 0; }
+          pipx install "shellcheck-py==$SHELLCHECK_PY_VERSION" >/dev/null
+          shellcheck --version | sed -n 2p
+          xargs -0 shellcheck -x -S "$SEVERITY" -f gcc <"$RUNNER_TEMP/sh" >"$RUNNER_TEMP/sc.out" && rc=0 || rc=$?
+          # One annotation per finding: path:line:col: level: message [SCxxxx]
+          sed -E 's/^([^:]+):([0-9]+):([0-9]+): (error|warning|note): (.*)$/::\4 file=\1,line=\2,col=\3::\5/; s/^::note /::notice /' "$RUNNER_TEMP/sc.out"
+          exit "$rc"
+
+  typecheck:
+    if: inputs.typecheck == 'report' || inputs.typecheck == 'enforce'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install basedpyright
+        run: pipx install "basedpyright==$BASEDPYRIGHT_VERSION"
+      - name: basedpyright
+        env:
+          MODE: ${{ inputs.typecheck }}
+        run: |
+          basedpyright --level error && rc=0 || rc=$?
+          # Exit 1 means "type errors found"; anything else (bad config, a
+          # crash) fails the job in every mode.
+          if [ "$rc" = 1 ] && [ "$MODE" = report ]; then
+            echo "::warning title=Type check::basedpyright found errors (typecheck: report, so the job stays green)"
+            exit 0
+          fi
+          exit "$rc"
+
+  test:
+    if: inputs.test-command != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the tests
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}
+          # Tests that commit need an identity; the runner has none.
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.invalid
+          GIT_COMMITTER_NAME: ci
+          GIT_COMMITTER_EMAIL: ci@example.invalid
+        run: bash -e -o pipefail -c "$TEST_COMMAND"

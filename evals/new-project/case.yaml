@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: new-project
+description: Creating a project makes hub 02 with the full layout and registers it.
+tags: [workai-new-project]
+runs: 3
+execution:
+  max_turns: 15
+  allowed_tools: [Read, Glob, Grep, Edit, Skill, "Bash(bash:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(git:*)"]
+  prompt: |
+    Create a new workai project named home-gym with the title "Home Gym".
+    Do not create a GitHub repo and do not commit ~/workai. Then tell me the
+    path of the new hub.
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-new-project'
+    arm: with-only
+  - name: structure-file
+    type: regex
+    pattern: '^\d+\.\d+\.\d+'
+    target: {source: file, path: "workai/projects/02-home-gym/STRUCTURE"}
+  - name: backlog-template
+    type: regex
+    pattern: 'depends:'
+    target: {source: file, path: "workai/projects/02-home-gym/backlog/TEMPLATE.md"}
+  - name: listed-in-generated-index
+    type: regex
+    pattern: '\*\*02 Home Gym\*\*.*`projects/02-home-gym/`'
+    target: {source: file, path: "workai/CLAUDE.md"}
+  - name: path-reported
+    type: regex
+    pattern: 'projects/02-home-gym'
+    target: last_message

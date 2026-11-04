@@ -1,0 +1,6 @@
+.DS_Store
+.env
+*.local.json
+evals/results/
+__pycache__/
+.venv/

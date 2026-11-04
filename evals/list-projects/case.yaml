@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: list-projects
+description: Saying "list active projects" lists every active hub and no archived one, and changes nothing.
+tags: [workai-list-projects]
+runs: 3
+execution:
+  max_turns: 10
+  allowed_tools: [Read, Glob, Grep, Skill, "Bash(python3:*)", "Bash(ls:*)", "Bash(git:*)"]
+  prompt: list active projects
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-list-projects'
+    arm: with-only
+  - name: every-active-hub
+    type: regex
+    pattern: '(?=[\s\S]*Demo)(?=[\s\S]*My Music)(?=[\s\S]*Ceramics)(?=[\s\S]*Job Change)(?=[\s\S]*Impuestos 2026)'
+    target: last_message
+  - name: no-archived-hub
+    type: regex
+    pattern: '^(?![\s\S]*(Impuestos 2025|Des\)?orden|Seguro))'
+    target: last_message
+  - name: card-untouched
+    type: regex
+    pattern: 'claimed_by:[ \t]*\n'
+    target: {source: file, path: "workai/projects/03-my-music/backlog/todo/002-rank-festival.md"}
+  - name: good-list
+    type: llm
+    criteria: |
+      PASS if the reply lists exactly five active projects (01 Demo, 03 My
+      Music, 11 Ceramics, 12 Job Change, 18 Impuestos 2026) with their numbers,
+      and points out that card 001 "Tag the albums" in 03 is waiting on the
+      user (or has a question for the user). FAIL if it lists an archived
+      project (Seguro reclamación, (Des)orden, Impuestos 2025), lists the non-hub folder
+      "ceramics" as a separate project, invents projects, or opens a project or
+      claims a card.

@@ -1,0 +1,5 @@
+# ruff for workai-playbooks (card 01-085). Default rule set (E4, E7, E9, F),
+# minus two style rules the code uses on purpose:
+# E741 short `l` loop names, E702 `a; b` one-liners in the youtrack client.
+[lint]
+ignore = ["E741", "E702"]

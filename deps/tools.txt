@@ -1,0 +1,24 @@
+# Tools the playbook needs. Read by install-mac.sh and install-ubuntu.sh, so
+# the Mac and Ubuntu installs stay in step: add a tool here, for every route.
+# Columns (whitespace separated, - = not available that way):
+#   name     command that must be on PATH afterwards (python3 must be >= 3.11)
+#   brew     Homebrew formula, or cask:NAME, or tap/formula (install-mac.sh
+#            runs `brew trust --formula` for those: Homebrew 7 refuses
+#            untrusted tap formulae). python3: `python`, the only formula that
+#            links `python3` (python@3.NN does not once it is not the default).
+#   port     MacPorts port, or release (release-binaries.txt), or native (vendor installer)
+#   apt      Ubuntu package, or repo:NAME (vendor apt repo, see install-ubuntu.sh), or release
+# Why each one: git/python3/bash run every script; tmux and workmux run the
+# per-card worktrees and the board; gh creates the private hub repos
+# (push-hub.sh); gitleaks is the second opinion in the pre-push scan; jq is
+# used by agents and the planned settings merge (card 006); claude is the agent.
+#
+# name     brew                    port        apt
+git        git                     git         git
+tmux       tmux                    tmux        tmux
+jq         jq                      jq          jq
+python3    python                  python313   python3
+gh         gh                      gh          repo:gh
+gitleaks   gitleaks                gitleaks    release
+workmux    raine/workmux/workmux   release     release
+claude     cask:claude-code        native      repo:claude-code

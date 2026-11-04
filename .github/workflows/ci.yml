@@ -1,0 +1,27 @@
+# workai-playbooks runs its own standard pipeline (card 01-085); this file is
+# the per-repo config. The AI review runs separately (ai-review.yml).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: ./.github/workflows/outcome-ci.yml
+    permissions:
+      contents: read
+    with:
+      python: true
+      shell: true
+      shellcheck-severity: error
+      typecheck: report  # 74 errors in standard mode on 2026-10-26: report until fixed
+      # uv runs tools/workai-board's pytest inside run-tests.sh
+      test-command: pipx install uv==0.9.5 >/dev/null && scripts/run-tests.sh

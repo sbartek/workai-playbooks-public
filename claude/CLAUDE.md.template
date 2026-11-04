@@ -1,0 +1,13 @@
+# Global Claude Code Instructions
+
+## Communication Style
+- Be concise and direct
+- No emojis unless explicitly requested
+- No unnecessary preamble or filler
+
+## Workflow
+- Prefer editing existing files over creating new ones
+- Run `git pull` before editing a repo that is also edited elsewhere
+- Stage explicit paths; avoid `git add -A` when another session may be editing the same repo
+- Do not commit or push unless asked
+- Ask before taking destructive actions

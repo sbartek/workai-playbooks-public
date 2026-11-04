@@ -1,0 +1,5 @@
+{
+  "youtrack": {
+    "command": "claude/mcp/youtrack-mcp.sh"
+  }
+}

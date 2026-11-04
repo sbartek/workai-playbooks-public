@@ -1,0 +1,3 @@
+# workai-secret run: env var names that differ from the default (upper snake
+# case of the secret name). One line per secret: <name> <ENV_VAR>.
+# Names only, never values.

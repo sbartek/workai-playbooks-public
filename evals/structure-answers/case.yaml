@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: structure-answers
+description: workai-structure explains where a new project goes and what a hub holds.
+tags: [workai-structure]
+runs: 3
+execution:
+  max_turns: 8
+  allowed_tools: [Read, Glob, Grep, Skill]
+  prompt: |
+    In my ~/workai workspace, where does a new project go, how is it numbered,
+    and what does its hub folder contain? Answer in at most five lines.
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: 'workai-structure'
+    arm: with-only
+  - name: names-the-layout
+    type: regex
+    pattern: 'projects/'
+    target: last_message
+  - name: mentions-backlog-and-repos
+    type: regex
+    pattern: '(?=[\s\S]*backlog)(?=[\s\S]*repos)'
+    target: last_message
+  - name: correct-answer
+    type: llm
+    criteria: |
+      PASS if the answer says all three: (1) new projects go in
+      ~/workai/projects/ as a folder named with a two-digit number and a name
+      (NN-name); (2) the number is the next after the highest existing one;
+      (3) the hub holds at least a backlog and repos for the outcomes. Naming
+      more hub contents is fine but not required. FAIL if it states a
+      different location, numbering scheme or layout.

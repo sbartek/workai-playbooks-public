@@ -1,0 +1,150 @@
+# AI review of pull requests with opencode and a zero-retention free model
+# (card 01-084 pilot). Keeps ONE comment per PR: the first run posts it, every
+# later run (a new push, a re-run) updates it in place.
+#
+# Needs the repository secret OPENCODE_API_KEY (an opencode Zen key). Without
+# it the job SKIPS: green, with a notice, so it never fails a PR.
+# MODELS is tried in order; the next model only on Zen's free-quota error
+# (card 01-183). Every model out of quota: the job skips green with a notice.
+#
+# Safety: `pull_request` only (never pull_request_target); same-repo branches
+# only (fork PRs get no secrets anyway); GITHUB_TOKEN only, reaching only the
+# comment step; checkout without stored credentials; opencode is a pinned
+# release verified by SHA-256. The step holding the key runs the reviewer
+# script taken from the BASE commit (`git show $BASE_SHA:...`), never the PR's
+# version: the PR head is only the tree under review. The diff ignores the
+# PR's .gitattributes diff settings (info/attributes `* !diff`, --no-ext-diff
+# --no-textconv). The agent works on
+# a copy of the PR head and may only read/glob/grep (scripts/opencode-review.sh).
+# The key never reaches opencode (card 01-157): the script keeps it in a
+# local proxy and runs opencode as the separate user `aireview` with an empty
+# environment (only the copy, its throwaway HOME and the diff are its files).
+# Limit: `pull_request` runs this workflow file as the PR head has it, so
+# someone who can push a branch here could still change the workflow itself;
+# only collaborators can, and fork PRs get no secrets.
+name: AI review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30  # reviews took 10-15 min on small PRs (card 084 Notes)
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      HAS_KEY: ${{ secrets.OPENCODE_API_KEY != '' }}
+      IS_DRAFT: ${{ github.event.pull_request.draft }}
+      HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+      # Zero-retention free models only (Zen docs, card 01-183), in order.
+      MODELS: opencode/deepseek-v4.1-flash-free opencode/glm-5.3-flash-free
+      OPENCODE_VERSION: 2.1.3
+      # sha256 of registry.npmjs.org/@opencode/cli-linux-x64/-/cli-linux-x64-2.1.3.tgz
+      OPENCODE_SHA256: c251bb3962813919d5eb8c0f43cd1cb3ab1d7a0cd28b2e556985706413005cb0
+    steps:
+      - name: Decide whether to review
+        id: gate
+        run: |
+          reason=""
+          if [ "$HAS_KEY" != "true" ]; then
+            reason="repository secret OPENCODE_API_KEY is not set"
+          elif [ "$IS_DRAFT" = "true" ]; then
+            reason="draft PR"
+          elif [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            reason="PR from a fork"
+          fi
+          if [ -n "$reason" ]; then
+            echo "::notice title=AI review skipped::$reason"
+            echo "AI review skipped: $reason" >>"$GITHUB_STEP_SUMMARY"
+            echo "run=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out the PR head
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install opencode (pinned, verified)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          d="$RUNNER_TEMP/opencode"
+          mkdir -p "$d"
+          curl -fsSL -o "$d/cli.tgz" \
+            "https://registry.npmjs.org/@opencode/cli-linux-x64/-/cli-linux-x64-${OPENCODE_VERSION}.tgz"
+          echo "$OPENCODE_SHA256  $d/cli.tgz" | sha256sum -c -
+          tar -xzf "$d/cli.tgz" -C "$d"
+          chmod +x "$d/package/bin/opencode"
+          echo "$d/package/bin" >>"$GITHUB_PATH"
+          "$d/package/bin/opencode" --version
+
+      - name: Review the diff
+        id: review
+        if: steps.gate.outputs.run == 'true'
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # opencode runs as this user, without the key (card 01-157): a key
+          # proxy holds it, and another uid cannot read its environment.
+          AI_REVIEW_USER: aireview
+          # The list goes by environment, not argv: a base script from before
+          # card 183 ignores it and reviews with its own single default model.
+          AI_REVIEW_MODELS: ${{ env.MODELS }}
+        run: |
+          id -u aireview >/dev/null 2>&1 || sudo useradd --system --no-create-home --shell /usr/sbin/nologin aireview
+          export XDG_CONFIG_HOME="$RUNNER_TEMP/xdg/config" XDG_DATA_HOME="$RUNNER_TEMP/xdg/data"
+          export XDG_STATE_HOME="$RUNNER_TEMP/xdg/state" XDG_CACHE_HOME="$RUNNER_TEMP/xdg/cache"
+          # The reviewer comes from the trusted base commit, not the PR head.
+          git show "$BASE_SHA:scripts/opencode-review.sh" >"$RUNNER_TEMP/opencode-review.sh"
+          # Override the PR's .gitattributes (a `-diff` would hide a text file as
+          # "Binary files differ"): info/attributes wins, and `!diff` brings back
+          # git's own binary detection, so real binaries stay one line.
+          echo '* !diff' >>"$(git rev-parse --git-path info/attributes)"
+          git diff --no-color --no-ext-diff --no-textconv "$BASE_SHA...$HEAD_SHA" >"$RUNNER_TEMP/pr.diff"
+          rc=0
+          bash "$RUNNER_TEMP/opencode-review.sh" "$RUNNER_TEMP/pr.diff" "$RUNNER_TEMP/review.md" || rc=$?
+          if [ "$rc" = 4 ]; then
+            echo "::notice title=AI review skipped::free usage limit reached on every model ($AI_REVIEW_MODELS)"
+            echo "AI review skipped: free usage limit reached on every model ($AI_REVIEW_MODELS)" >>"$GITHUB_STEP_SUMMARY"
+            echo "quota=true" >>"$GITHUB_OUTPUT"
+            rc=0
+          fi
+          exit "$rc"
+
+      - name: Post the review comment
+        if: steps.gate.outputs.run == 'true' && steps.review.outputs.quota != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # One comment per PR: update the bot's newest review and delete any
+          # older ones, else post one. Ours start with the marker (older ones
+          # with the heading).
+          ids="$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and ((.body | startswith("<!-- ai-review:opencode -->")) or (.body | startswith("### AI review (opencode")))) | .id')"
+          id="$(printf '%s\n' "$ids" | sed '/^$/d' | tail -n 1)"
+          if [ -n "$id" ]; then
+            jq -n --rawfile b "$RUNNER_TEMP/review.md" '{body: $b}' |
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" --input - >/dev/null
+            echo "updated review comment $id"
+            for old in $(printf '%s\n' "$ids" | sed '/^$/d' | sed '$d'); do
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/comments/$old" >/dev/null
+              echo "deleted older review comment $old"
+            done
+          else
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/review.md"
+          fi
