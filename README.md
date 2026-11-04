@@ -422,3 +422,19 @@ section, and a patch when a SKILL.md changed), writes `VERSION`, commits
 `Release a.b.c` and tags `va.b.c`. It does not push: `git push
 --follow-tags` after the user's OK. Then `./install.sh claude --release` on
 each machine that uses releases.
+
+## How to contribute: fork + PR
+
+The public copy, `sbartek/workai-playbooks-public`, is open to pull
+requests; its `main` is protected (no force-push, no deletion, changes only
+through a PR) and only the owner merges.
+
+1. Fork `sbartek/workai-playbooks-public` and clone your fork.
+2. Make the change on a branch; run `scripts/run-tests.sh` (and
+   `scripts/check-skills.py` for a skill change).
+3. Open a pull request against `main` of the public repo, saying what and why.
+
+The public repo is a copy of a private one, refreshed by "Sync from private
+main" pull requests. An accepted contribution is therefore applied to the
+private repo first (with `Co-authored-by:` credit) and reaches the public
+repo with the next sync; your PR is then closed with a link to that sync.
